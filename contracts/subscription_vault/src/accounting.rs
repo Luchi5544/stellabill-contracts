@@ -151,4 +151,105 @@ mod tests {
         sub_total_accounted(&env, &token, i128::MAX).unwrap();
         assert_eq!(get_total_accounted(&env, &token), 0);
     }
+
+    #[test]
+    fn sub_total_accounted_reduces_balance_by_valid_amount() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 1_000).unwrap();
+        sub_total_accounted(&env, &token, 400).unwrap();
+        assert_eq!(get_total_accounted(&env, &token), 600);
+    }
+
+    #[test]
+    fn sub_total_accounted_exact_balance_succeeds_and_zeroes() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 750).unwrap();
+        sub_total_accounted(&env, &token, 750).unwrap();
+        assert_eq!(get_total_accounted(&env, &token), 0);
+    }
+
+    #[test]
+    fn sub_total_accounted_zero_amount_succeeds_without_change() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 750).unwrap();
+        sub_total_accounted(&env, &token, 0).unwrap();
+        assert_eq!(get_total_accounted(&env, &token), 750);
+    }
+
+    #[test]
+    fn sub_total_accounted_negative_amount_rejected_and_state_unchanged() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 750).unwrap();
+        let result = sub_total_accounted(&env, &token, -1);
+        assert_eq!(result, Err(Error::InvalidAmount));
+        assert_eq!(get_total_accounted(&env, &token), 750);
+    }
+
+    #[test]
+    fn sub_total_accounted_from_zero_balance_rejected_and_state_unchanged() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        let result = sub_total_accounted(&env, &token, 1);
+        assert_eq!(result, Err(Error::Underflow));
+        assert_eq!(get_total_accounted(&env, &token), 0);
+    }
+
+    #[test]
+    fn sub_total_accounted_above_balance_rejected_and_state_unchanged() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 100).unwrap();
+        let result = sub_total_accounted(&env, &token, 101);
+        assert_eq!(result, Err(Error::Underflow));
+        assert_eq!(get_total_accounted(&env, &token), 100);
+    }
+
+    #[test]
+    fn sub_total_accounted_after_rejection_uses_original_balance() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 500).unwrap();
+        assert_eq!(sub_total_accounted(&env, &token, 900), Err(Error::Underflow));
+        sub_total_accounted(&env, &token, 500).unwrap();
+        assert_eq!(get_total_accounted(&env, &token), 0);
+    }
+
+    #[test]
+    fn sub_total_accounted_isolated_per_token() {
+        let env = Env::default();
+        let token_a = Address::generate(&env);
+        let token_b = Address::generate(&env);
+        add_total_accounted(&env, &token_a, 800).unwrap();
+        add_total_accounted(&env, &token_b, 800).unwrap();
+        sub_total_accounted(&env, &token_a, 300).unwrap();
+        assert_eq!(get_total_accounted(&env, &token_a), 500);
+        assert_eq!(get_total_accounted(&env, &token_b), 800);
+    }
+
+    #[test]
+    fn sub_total_accounted_i128_max_boundary() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, i128::MAX).unwrap();
+        sub_total_accounted(&env, &token, i128::MAX - 1).unwrap();
+        assert_eq!(get_total_accounted(&env, &token), 1);
+        let result = sub_total_accounted(&env, &token, 2);
+        assert_eq!(result, Err(Error::Underflow));
+        assert_eq!(get_total_accounted(&env, &token), 1);
+    }
+
+    #[test]
+    fn sub_total_accounted_repeated_interleaved_with_adds() {
+        let env = Env::default();
+        let token = Address::generate(&env);
+        add_total_accounted(&env, &token, 1_000).unwrap();
+        sub_total_accounted(&env, &token, 250).unwrap();
+        add_total_accounted(&env, &token, 500).unwrap();
+        sub_total_accounted(&env, &token, 1_250).unwrap();
+        assert_eq!(get_total_accounted(&env, &token), 0);
+    }
 }
